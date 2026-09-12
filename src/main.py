@@ -4,14 +4,16 @@ from block_markdown import markdown_to_html_node
 from pathlib import Path
 import os
 import shutil
+import sys
 
 def main():
     markdown = "# This is a **TITLE**"
     title = extract_title(markdown)
     print(title)
-    check_target_directory("./public")
-    copy_files("./static", "./public")
-    generate_pages_recursive("./content", "./template.html", "./public")
+    check_target_directory("./docs")
+    copy_files("./static", "./docs")
+    basepath = sys.argv[1] if len(sys.argv) > 1 else "./content" #extract the first command line argument from terminal
+    generate_pages_recursive("./content", "./template.html", "./docs", basepath)
 
 
 def check_target_directory (target_directory: str): # verify the existence of the target_directory; get an empty directory ready
@@ -37,7 +39,7 @@ def extract_title(markdown):
             return line[2:].strip()  # Return the title without the '# ' prefix
     raise Exception("No title found in the markdown content.")
 
-def generate_page(from_path, template_path, dest_path): #generate a single HTML page from a markdown file and a template
+def generate_page(from_path, template_path, dest_path, basepath="/"): #generate a single HTML page from a markdown file and a template
     print (f"Generating page from {from_path} to {dest_path} using template {template_path}")
     content = Path(from_path).read_text()  # Read the markdown content from the source file
     template = Path(template_path).read_text()  # Read the template content from the template file
@@ -45,21 +47,22 @@ def generate_page(from_path, template_path, dest_path): #generate a single HTML 
     html_content = html_node.to_html()
     title = extract_title(content)
     final_html = template.replace("{{ Title }}", title).replace("{{ Content }}", html_content)
+    final_html = final_html.replace('href="/', f'href="{basepath}').replace('src="/', f'src="{basepath}')  # Adjust paths in the final HTML
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)  # Ensure the destination directory exists
     Path(dest_path).write_text(final_html) # write the HTML content to the file
 
-def generate_pages_recursive(dir_path_content, template_path, dest_dir_push):
+def generate_pages_recursive(dir_path_content, template_path, dest_dir_push, basepath="/"): #generate HTML pages recursively from a directory of markdown files and a template
     items = os.listdir(dir_path_content) # get the list of items in the content directory
     for item in items:
         source_path = os.path.join(dir_path_content, item) # get the full path of the item in the content directory
         if os.path.isdir(source_path): # if the item is a directory, recursively call the function
             dest_path = os.path.join(dest_dir_push, item) # get the full path of the item in the destination directory
             os.makedirs(dest_path, exist_ok=True) # create the directory in the destination directory
-            generate_pages_recursive(source_path, template_path, dest_path)
-        if os.path.isfile(source_path): # the item is a file, generate the page
+            generate_pages_recursive(source_path, template_path, dest_path, basepath)
+        elif os.path.isfile(source_path) and item.endswith(".md"): # the item is a .md file, generate the page
             file_name = os.path.splitext(item)[0] # get the file name without extension
             dest_path = os.path.join(dest_dir_push, file_name + ".html") # create the destination path with .html extension
-            generate_page(source_path, template_path, dest_path)
+            generate_page(source_path, template_path, dest_path, basepath)
 
 
 
